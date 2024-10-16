@@ -9,6 +9,7 @@ class DetailListItemView extends StatefulWidget {
   const DetailListItemView({super.key, required this.id, required this.name});
   final int id;
   final String name;
+
   @override
   State<DetailListItemView> createState() => _DetailListItemViewState();
 }
@@ -17,10 +18,12 @@ class _DetailListItemViewState extends State<DetailListItemView> {
   ApiService apiService = ApiService(baseUrl: base_url_api);
   late SharedPreferences prefs;
   TextEditingController itemText = TextEditingController();
+  TextEditingController editTextController =
+      TextEditingController(); // Tambahkan controller ini untuk edit
   List? itemList;
+
   @override
   void initState() {
-    // TODO: implement initState
     super.initState();
     initData();
     getDataChecklistItem();
@@ -58,9 +61,25 @@ class _DetailListItemViewState extends State<DetailListItemView> {
       setState(() {
         itemList = response.data['data'];
       });
-    } else {
-      // todolist = [];
     }
+  }
+
+  void renameItemTask(int id, String renameTask) async {
+    Map<String, dynamic> data = {"itemName": renameTask};
+    final token = await prefs.getString(K_BEARER_TOKEN) ?? "";
+    Map<String, dynamic> headers = {'Authorization': 'Bearer $token'};
+    final resp = await apiService.putRequest(
+        "/checklist/${widget.id}/item/rename/$id", data,
+        headers: headers);
+    if (resp != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("${resp.data['message']}"),
+        ),
+      );
+      getDataChecklistItem();
+    }
+    log("data berhasil save $resp");
   }
 
   void updateItemTask(int id) async {
@@ -78,22 +97,6 @@ class _DetailListItemViewState extends State<DetailListItemView> {
       getDataChecklistItem();
     }
     log("data berhasil save $resp");
-  }
-
-  void getDataChecklistItemDetail(int id) async {
-    prefs = await SharedPreferences.getInstance();
-    final token = await prefs.getString(K_BEARER_TOKEN) ?? "";
-    final response = await apiService.authenticatedRequest(
-        "/checklist/${widget.id}/item/${id}", token);
-    log("Data checklist ${response!.data}");
-    if (response.data != null) {
-      log("Data all ${response.data['data']}");
-      setState(() {
-        // itemList = response.data['data'];
-      });
-    } else {
-      // todolist = [];
-    }
   }
 
   void deleteTask(int id) async {
@@ -150,9 +153,7 @@ class _DetailListItemViewState extends State<DetailListItemView> {
                   ),
                 ],
               ),
-              SizedBox(
-                height: 20,
-              ),
+              SizedBox(height: 20),
               itemList == null
                   ? Container(
                       alignment: Alignment.center,
@@ -169,26 +170,91 @@ class _DetailListItemViewState extends State<DetailListItemView> {
                         return Row(
                           children: [
                             Checkbox(
-                                value: itemList![index]['itemCompletionStatus'],
-                                onChanged: (value) {
-                                  updateItemTask(itemList![index]['id']);
-                                }),
+                              value: itemList![index]['itemCompletionStatus'],
+                              onChanged: (value) {
+                                updateItemTask(itemList![index]['id']);
+                              },
+                            ),
                             Expanded(
-                                child: Text("${itemList![index]['name']}")),
+                              child: Text("${itemList![index]['name']}"),
+                            ),
+                            IconButton(
+                              onPressed: () {
+                                showModalBottomSheet(
+                                  context: context,
+                                  isScrollControlled: true,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.vertical(
+                                      top: Radius.circular(20),
+                                    ),
+                                  ),
+                                  builder: (context) {
+                                    final named =
+                                        itemList![index]['name'] ?? "";
+                                    editTextController.text = named;
+                                    return Padding(
+                                      padding: EdgeInsets.only(
+                                        bottom: MediaQuery.of(context)
+                                            .viewInsets
+                                            .bottom,
+                                        left: 16,
+                                        right: 16,
+                                        top: 16,
+                                      ),
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            'Edit Item',
+                                            style: TextStyle(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                          SizedBox(height: 10),
+                                          TextField(
+                                            controller: editTextController,
+                                            decoration: InputDecoration(
+                                              border: OutlineInputBorder(),
+                                              labelText: 'Item Name',
+                                              hintText: 'Enter new name',
+                                            ),
+                                          ),
+                                          SizedBox(height: 20),
+                                          ElevatedButton(
+                                            onPressed: () {
+                                              renameItemTask(
+                                                  itemList![index]['id'],
+                                                  editTextController.text);
+                                              Navigator.pop(context);
+                                            },
+                                            child: Text('Save Changes'),
+                                          ),
+                                          SizedBox(height: 20),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                );
+                              },
+                              icon: Icon(
+                                Icons.edit,
+                                color: Colors.blue,
+                              ),
+                            ),
                             IconButton(
                               onPressed: () {
                                 deleteTask(itemList![index]['id']);
-                                // log("detail ${todolist![index]['id']}");
                               },
                               icon: Icon(
                                 Icons.delete,
                                 color: Colors.red,
                               ),
-                            )
+                            ),
                           ],
                         );
                       },
-                    )
+                    ),
             ],
           ),
         ),
